@@ -1,0 +1,204 @@
+#!/usr/bin/env python
+"""
+Greek Energy Flow II - Full Analysis Sequence Script
+
+This script runs all analysis modules in the correct sequence:
+1. Data acquisition and processing for all tickers
+2. ML model training using the analysis data
+3. ML predictions and trade signal generation
+4. Launches the full-featured dashboard
+
+Just run this script, and it will handle the entire analysis pipeline.
+
+Usage:
+    python run_full_analysis.py  # Run with all tickers in my_tickers.txt
+    python run_full_analysis.py --tickers AAPL MSFT  # Run with specific tickers
+    python run_full_analysis.py --tickers-file custom_tickers.txt  # Use custom ticker file
+    python run_full_analysis.py --no-dashboard  # Run analysis only without launching dashboard
+    python run_full_analysis.py --refresh-interval 300  # Auto-refresh data every 5 minutes
+
+Author: Your Name
+Date: May 5, 2025
+"""
+
+import os
+import sys
+import time
+import logging
+import argparse
+import subprocess
+import threading
+from datetime import datetime
+
+# Configure logging
+def setup_logging(log_dir="logs", debug=False):
+    """Set up logging with timestamped file and console output."""
+    os.makedirs(log_dir, exist_ok=True)
+    
+    log_level = logging.DEBUG if debug else logging.INFO
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join(log_dir, f"full_analysis_{timestamp}.log")
+    
+    # Configure root logger
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    
+    logger = logging.getLogger("FullAnalysis")
+    logger.info(f"Logging initialized. Log file: {log_file}")
+    
+    return logger
+
+def run_command(command, description):
+    """Run a command and log the output."""
+    logger.info(f"Running {description}...")
+    logger.debug(f"Command: {command}")
+    
+    try:
+        # Run the command and capture output
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        
+        # Log the output
+        for line in result.stdout.splitlines():
+            logger.debug(f"OUTPUT: {line}")
+        
+        logger.info(f"{description} completed successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"{description} failed with exit code {e.returncode}")
+        logger.error(f"Error output: {e.stderr}")
+        return False
+    except Exception as e:
+        logger.error(f"Error running {description}: {str(e)}")
+        return False
+
+def main():
+    """Main function to run the full analysis sequence."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Run the full Greek Energy Flow analysis sequence"
+    )
+    
+    # Basic configuration
+    parser.add_argument("--tickers", nargs="+", default=None,
+                      help="List of ticker symbols (e.g., AAPL MSFT GOOGL)")
+    parser.add_argument("--tickers-file", default="my_tickers.txt",
+                      help="Path to a file containing ticker symbols (one per line)")
+    
+    # Output settings
+    parser.add_argument("--output-dir", default="results",
+                      help="Directory to save analysis results")
+    
+    # Dashboard settings
+    parser.add_argument("--no-dashboard", action="store_true",
+                      help="Skip launching the dashboard")
+    parser.add_argument("--refresh-schedule", choices=["morning", "midday", "evening", "none"],
+                      default="midday", help="When to refresh data (morning, midday, evening, or none)")
+    parser.add_argument("--manual-refresh", action="store_true", default=True,
+                      help="Add a manual refresh button to the dashboard")
+    parser.add_argument("--debug", action="store_true",
+                      help="Enable debug logging")
+    
+    args = parser.parse_args()
+    
+    # Prepare ticker arguments
+    ticker_args = []
+    if args.tickers:
+        ticker_args = ["--tickers"] + args.tickers
+    else:
+        ticker_args = ["--tickers-file", args.tickers_file]
+    
+    # Step 1: Run data acquisition and analysis
+    logger.info("STEP 1: Running data acquisition and analysis")
+    dashboard_command = [
+        "python", "run_dashboard.py",
+        *ticker_args,
+        "--mode", "analysis",
+        "--output-dir", args.output_dir
+    ]
+    
+    if args.debug:
+        dashboard_command.append("--debug")
+    
+    if not run_command(dashboard_command, "Data acquisition and analysis"):
+        logger.error("Data acquisition and analysis failed. Exiting.")
+        return 1
+    
+    # Step 2: Train ML models
+    logger.info("STEP 2: Training ML models")
+    ml_train_command = [
+        "python", "run_ml_regime_analysis.py",
+        "--train"
+    ]
+    
+    if not run_command(ml_train_command, "ML model training"):
+        logger.warning("ML model training failed or skipped. Continuing...")
+    
+    # Step 3: Generate ML predictions
+    logger.info("STEP 3: Generating ML predictions")
+    ml_predict_command = [
+        "python", "run_ml_regime_analysis.py",
+        "--predict"
+    ]
+    
+    if not run_command(ml_predict_command, "ML prediction generation"):
+        logger.warning("ML prediction generation failed or skipped. Continuing...")
+    
+    # Step 4: Launch dashboard
+    if not args.no_dashboard:
+        logger.info("STEP 4: Launching dashboard")
+        dashboard_command = [
+            "python", "run_live_dashboard.py"
+        ]
+        
+        # Add base directory parameter - use project root, not output dir
+        # This prevents looking in "results/results"
+        dashboard_command.extend(["--base-dir", os.path.dirname(os.path.abspath(__file__))])
+        
+        # Add parameters
+        if args.refresh_schedule and args.refresh_schedule != "none":
+            dashboard_command.extend(["--refresh-schedule", args.refresh_schedule])
+        
+        if args.manual_refresh:
+            dashboard_command.append("--manual-refresh")
+            
+        # Run dashboard in a separate process
+        logger.info("Launching dashboard... (Press Ctrl+C to exit)")
+        try:
+            subprocess.run(dashboard_command, check=True)
+        except KeyboardInterrupt:
+            logger.info("Dashboard closed by user")
+        except Exception as e:
+            logger.error(f"Error launching dashboard: {e}")
+            return 1
+    else:
+        logger.info("Dashboard launch skipped as requested")
+    
+    logger.info("Full analysis sequence completed successfully")
+    return 0
+
+if __name__ == "__main__":
+    # Setup logging
+    logger = setup_logging(debug=True)
+    logger.info("Greek Energy Flow II - Full Analysis Sequence starting...")
+    
+    # Run main function
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+        sys.exit(1)

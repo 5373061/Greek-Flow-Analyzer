@@ -1,0 +1,109 @@
+# Python files
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Log files
+*.log
+*.logs
+logs/
+
+# Cache and temporary files
+cache/
+garbage/
+.DS_Store
+Thumbs.db
+
+# Data files and outputs
+data/*
+!data/.gitkeep
+results/*
+!results/.gitkeep
+output/*
+!output/.gitkeep
+visualizations/*
+!visualizations/.gitkeep
+charts/*
+!charts/.gitkeep
+
+# Backup files
+backups/
+*.bak
+dashboard_backup_*/
+
+# Model files (exclude if large)
+models/
+test_models/
+*.pkl
+*.joblib
+*.h5
+
+# Reports and outputs
+reports/*
+!reports/.gitkeep
+test_results/*
+!test_results/.gitkeep
+test_report_*.json
+wf_results/
+
+# Configuration files with sensitive data
+config.json
+
+# Analysis specific files
+analysis.log
+greek_flow_analysis_*.log
+ml_regime_analysis_*.log
+ml_trading_*.log
+ml_test_*.log

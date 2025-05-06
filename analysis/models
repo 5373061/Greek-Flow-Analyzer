@@ -1,0 +1,43 @@
+# bsm_model.py
+import numpy as np
+from scipy.stats import norm
+
+class BlackScholesModel:
+    @staticmethod
+    def calculate(S, K, T, r, sigma, option_type='call'):
+        """Calculate option price and Greeks"""
+        try:
+            is_call = option_type.lower() == 'call'
+            sqrt_T = np.sqrt(T)
+            
+            # Calculate d1, d2
+            d1 = (np.log(S/K) + (r + sigma**2/2)*T) / (sigma * sqrt_T)
+            d2 = d1 - sigma * sqrt_T
+            
+            # Standard normal CDF
+            N = norm.cdf
+            n = norm.pdf
+            
+            # Option price
+            if is_call:
+                price = S * N(d1) - K * np.exp(-r * T) * N(d2)
+                delta = N(d1)
+            else:
+                price = K * np.exp(-r * T) * N(-d2) - S * N(-d1)
+                delta = N(d1) - 1
+                
+            # Common Greeks
+            gamma = n(d1) / (S * sigma * sqrt_T)
+            theta = -S * sigma * n(d1)/(2*sqrt_T)
+            vega = S * sqrt_T * n(d1)
+            
+            return {
+                'price': price,
+                'delta': delta,
+                'gamma': gamma,
+                'theta': theta,
+                'vega': vega
+            }
+            
+        except:
+            return None

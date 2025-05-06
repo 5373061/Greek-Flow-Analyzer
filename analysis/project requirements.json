@@ -1,0 +1,77 @@
+
+This project is a comprehensive options analysis framework that combines options chain data with advanced Greek analysis techniques to identify trading opportunities based on market energy patterns.
+
+## Project Structure
+```
+options_analyzer/
+├── main.py                    # Entry point for options analysis [COMPLETED]
+├── config.py                  # Configuration settings [EXISTING]
+├── data/
+│   ├── __init__.py            # Package initialization [COMPLETED]
+│   ├── data_loader.py         # Data loading from various sources [EXISTING]
+│   └── cache_manager.py       # Caching for API data [COMPLETED]
+├── analysis/
+│   ├── __init__.py            # Package initialization [COMPLETED]
+│   ├── symbol_analyzer.py     # Main analysis orchestrator [COMPLETED]
+│   ├── greek_analyzer.py      # Greek energy flow analysis [PENDING]
+│   ├── momentum_analyzer.py   # Price momentum analysis [EXISTING]
+│   ├── pattern_analyzer.py    # Pattern recognition [COMPLETED]
+│   └── risk_analyzer.py       # Risk metrics calculation [COMPLETED]
+├── visualization/
+│   ├── __init__.py            # Package initialization [COMPLETED]
+│   ├── chart_generator.py     # Charting and visualization [COMPLETED]
+│   └── formatters.py          # Report formatting [COMPLETED]
+└── utils/
+    ├── __init__.py            # Package initialization [COMPLETED]
+    ├── helpers.py             # Common utility functions [COMPLETED]
+    └── io_logger.py           # Logging utilities [EXISTING]
+```
+
+## Components Status
+
+### Completed Components
+1. **Project Structure**: Basic directory structure with `__init__.py` files
+2. **Utility Classes**:
+   - `utils/helpers.py`: Helper functions for directories, dates, etc.
+   - `utils/io_logger.py`: Logging utilities (existing code moved)
+3. **Data Management**:
+   - `data/cache_manager.py`: API data caching to reduce requests
+4. **Analysis Components**:
+   - `analysis/pattern_analyzer.py`: Market pattern recognition
+   - `analysis/risk_analyzer.py`: Risk management metrics
+   - `analysis/symbol_analyzer.py`: Main analysis orchestrator
+5. **Visualization**:
+   - `visualization/formatters.py`: Report formatting for analysis results
+   - `visualization/chart_generator.py`: Chart generation for analysis
+6. **Main Application**:
+   - `main.py`: Entry point with command-line interface
+
+### Pending Components
+1. **Greek Analysis Integration**:
+   - Move `Greek_Energy_FlowII.py` code to `analysis/greek_analyzer.py`
+2. **Data Loading Integration**:
+   - Reorganize existing `data_loader.py` into the new structure
+3. **BSM Model Integration**:
+   - Move `bsm_model.py` code into the framework
+4. **API Fetcher Integration**:
+   - Reorganize `api_fetcher.py` into the new structure
+
+## Next Steps
+1. Move existing code for BSM model, Greek energy flow analysis, and API fetcher into the new modular structure
+2. Create proper imports between modules
+3. Update any paths or imports in the main orchestrator
+4. Test the framework with sample symbols
+5. Implement any additional features needed
+
+## Key Features
+- Parallel processing of multiple symbols for efficiency
+- Caching to reduce API calls
+- Comprehensive Greek energy analysis
+- Momentum analysis for price action
+- Pattern recognition for market regimes
+- Risk metrics for position sizing
+- Visualization through charts and reports
+- Daily snapshots for tracking changes over time
+refer to all existing files in the folder as they are the scripts to be used for theis taks
+
+This framework provides a solid foundation for analyzing options data and identifying trading opportunities based on Greek energy flows and market patterns.

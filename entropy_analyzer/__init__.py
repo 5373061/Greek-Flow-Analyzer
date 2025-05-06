@@ -1,0 +1,2 @@
+"""Entropy Analyzer package."""
+
