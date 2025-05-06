@@ -1,13 +1,14 @@
 # Greek Energy Flow II - Pattern Analysis Testing
 
-This document provides information on how to run the test scripts for the Greek Energy Flow II pattern analysis integration.
+This document provides information on how to run the test scripts for the Greek Energy Flow II pattern analysis integration, including entry/exit signal generation.
 
 ## Available Test Scripts
 
 1. **test_ordinal_pattern_analyzer.py**: Unit tests for the `GreekOrdinalPatternAnalyzer` class and `PatternMetrics` utility.
 2. **test_cross_greek_patterns.py**: Unit tests for the `CrossGreekPatternAnalyzer` class that analyzes relationships between different Greek metrics.
-3. **test_pattern_integration.py**: Integration tests for the pattern analyzer integration with the pipeline.
-4. **run_tests.py**: Script to run all tests and generate a report.
+3. **test_trade_signals.py**: Unit tests for the `TradeSignalGenerator` class that generates entry/exit signals based on patterns.
+4. **test_pattern_integration.py**: Integration tests for the pattern analyzer integration with the pipeline.
+5. **run_tests.py**: Script to run all tests and generate a report.
 
 ## Running the Tests
 
@@ -113,6 +114,14 @@ All warnings are still recorded in the log files for reference.
 - **Cross-Greek Enhancement**: Tests enhancing trade recommendations with cross-Greek insights
 - **Moneyness Determination**: Tests determining moneyness categories from trade recommendations
 
+### Trade Signal Tests (test_trade_signals.py)
+
+- **Signal Generation**: Tests entry and exit signal generation based on recognized patterns
+- **Signal Types**: Tests identification of ENTRY_LONG, ENTRY_SHORT, EXIT_LONG, EXIT_SHORT signals
+- **Strategy Recommendation**: Tests recommendation of appropriate options strategies based on signal type and confidence
+- **Risk Management**: Tests calculation of take-profit and stop-loss levels
+- **Position Management**: Tests handling of existing positions and generating appropriate signals
+
 ### Integration Tests (test_pattern_integration.py)
 
 - **Pipeline Integration**: Tests integration with the mock pipeline manager
@@ -120,6 +129,7 @@ All warnings are still recorded in the log files for reference.
 - **Pattern Enhancement Flow**: Tests the full flow of pattern-based trade enhancement
 - **Library Persistence**: Tests saving and loading pattern libraries during integration
 - **Cross-Greek Integration**: Tests the integration of cross-Greek pattern analysis with the pipeline
+- **Signal Integration**: Tests the integration of trade signal generation with the pipeline
 
 ## Adapting Tests for Real Pipeline
 

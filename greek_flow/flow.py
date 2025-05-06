@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 import math
+import os
+import json
 
 # Configure warnings and logging
 warnings.filterwarnings("ignore")
@@ -148,6 +150,16 @@ class GreekEnergyFlow:
 
         market_regime = self._classify_market_regime(aggregated_greeks, market_data)
         logging.info(f"Market Regime Classified: {market_regime.get('primary_label', 'N/A')}, {market_regime.get('secondary_label', 'N/A')}")
+
+        # Save market regime to file for dashboard
+        try:
+            os.makedirs(os.path.join("results", "market_regime"), exist_ok=True)
+            regime_file = os.path.join("results", "market_regime", "current_regime.json")
+            with open(regime_file, 'w') as f:
+                json.dump(market_regime, f, indent=2)
+            logging.info(f"Market regime saved to {regime_file}")
+        except Exception as e:
+            logging.error(f"Failed to save market regime: {e}")
 
         energy_levels = self._generate_energy_levels(aggregated_greeks, reset_points, market_data)
         logging.info(f"Generated {len(energy_levels)} energy level(s).")

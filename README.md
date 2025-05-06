@@ -549,5 +549,40 @@ For regime transition visualization, you can load historical regime data:
 
 This enables visualization of regime transitions over time, but is not required for basic dashboard functionality.
 
+## Dashboard Setup
+
+The dashboard requires properly formatted data files to display trade recommendations and market context:
+
+1. **Market Regime Files**: The dashboard looks for market regime information in these locations:
+   - `results/market_regime/current_regime.json` (primary location)
+   - `results/market_regime_summary.json`
+   - `results/regime_validation.json`
+   - `results/market_bias.json`
+
+2. **Creating Market Regime Files**: You can create the required market regime file using:
+   ```bash
+   python create_market_regime.py
+   ```
+   This creates a file with the current market regime classification.
+
+3. **Trade Recommendation Files**: The dashboard loads trade recommendations from:
+   - `results/{symbol}_trade_recommendation.json`
+   - `results/{symbol}_enhanced_recommendation.json`
+
+4. **Launching the Dashboard**:
+   ```bash
+   # Quick setup and launch
+   fix_and_run_dashboard.bat
+   
+   # Or run directly
+   python -m tools.trade_dashboard
+   ```
+
+For ML-enhanced recommendations, use:
+```bash
+fix_ml_and_run_dashboard.bat
+```
+
+
 
 

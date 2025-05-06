@@ -7,10 +7,12 @@ import logging
 import os
 from ordinal_pattern_analyzer import GreekOrdinalPatternAnalyzer
 from cross_greek_patterns import CrossGreekPatternAnalyzer
+from trade_signals import TradeSignalGenerator
 
 logger = logging.getLogger(__name__)
 
-def integrate_with_pipeline(pipeline_manager, pattern_library_path="patterns", use_cross_greek=False):
+def integrate_with_pipeline(pipeline_manager, pattern_library_path="patterns", 
+                          use_cross_greek=False, use_trade_signals=True):
     """
     Integrate the ordinal pattern analysis with the existing pipeline.
     
@@ -18,6 +20,7 @@ def integrate_with_pipeline(pipeline_manager, pattern_library_path="patterns", u
         pipeline_manager: The existing pipeline manager instance
         pattern_library_path: Directory path for storing pattern libraries
         use_cross_greek: Whether to use cross-Greek pattern analysis
+        use_trade_signals: Whether to generate trade signals
         
     Returns:
         Enhanced pipeline manager
@@ -132,6 +135,68 @@ def integrate_with_pipeline(pipeline_manager, pattern_library_path="patterns", u
                 
                 except Exception as e:
                     logger.error(f"Error in cross-Greek pattern analysis: {e}")
+            
+            # Generate trade signals if enabled
+            if use_trade_signals:
+                try:
+                    # Initialize signal generator
+                    signal_generator = TradeSignalGenerator(
+                        pipeline_manager.pattern_analyzer,
+                        cross_analyzer if use_cross_greek else None
+                    )
+                    
+                    # Extract current position if available
+                    current_position = None
+                    if 'current_position' in results:
+                        current_position = results['current_position']
+                    
+                    # Generate trade signals
+                    signals = signal_generator.generate_signals(
+                        recent_data, 
+                        recognized_patterns,
+                        current_position
+                    )
+                    
+                    # Add signals to results
+                    results['pattern_analysis']['trade_signals'] = signals
+                    
+                    # If there's no existing trade recommendation, create one from signals
+                    if 'trade_recommendation' not in results and signals:
+                        # Use the highest confidence signal as the primary recommendation
+                        top_signal = signals[0]
+                        results['trade_recommendation'] = {
+                            'action': top_signal['signal_type'].value,
+                            'confidence': top_signal['confidence'],
+                            'strategy': top_signal['strategy'],
+                            'target_strike': top_signal['target_strike'],
+                            'take_profit': top_signal.get('take_profit'),
+                            'stop_loss': top_signal.get('stop_loss'),
+                            'expiration': top_signal.get('expiration'),
+                            'signal_source': 'ordinal_pattern'
+                        }
+                        
+                        logger.info(f"Created trade recommendation from pattern signal for {symbol}: "
+                                   f"{top_signal['signal_type'].value} with confidence {top_signal['confidence']:.2f}")
+                    
+                    # Enhance existing recommendation with signal insights
+                    elif 'trade_recommendation' in results and signals:
+                        top_signal = signals[0]
+                        recommendation = results['trade_recommendation']
+                        
+                        # Combine confidence levels
+                        original_confidence = recommendation.get('confidence', 0.5)
+                        new_confidence = 0.6 * original_confidence + 0.4 * top_signal['confidence']
+                        recommendation['confidence'] = new_confidence
+                        
+                        # Add signal details
+                        recommendation['supporting_signals'] = signals[:3]  # Top 3 signals
+                        recommendation['signal_enhanced'] = True
+                        
+                        logger.info(f"Enhanced trade recommendation for {symbol} with pattern signals. "
+                                   f"Confidence: {original_confidence:.2f} → {new_confidence:.2f}")
+                
+                except Exception as e:
+                    logger.error(f"Error in trade signal generation: {e}")
             
         except Exception as e:
             logger.error(f"Error in pattern analysis for {symbol}: {e}")

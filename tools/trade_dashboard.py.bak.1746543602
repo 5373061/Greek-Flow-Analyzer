@@ -1573,7 +1573,7 @@ class IntegratedDashboard:
              ttk.Label(frame, text="-").pack(padx=10, pady=10) # Placeholder
 
         # Clear Price Chart
-        if hasattr(self, 'canvas') and self.canvas: self.canvas.get_tk_widget().destroy()
+        if self.canvas: self.canvas.get_tk_widget().destroy()
         if self.fig: plt.close(self.fig) # Close the figure to release memory
         self.fig, self.canvas = None, None
         # Ensure placeholder is visible
@@ -2013,7 +2013,7 @@ class IntegratedDashboard:
         """Update the Price Analysis chart in the Summary tab."""
         logger.debug(f"Updating price chart for {rec.get('symbol')}")
         # Clear previous chart and placeholder
-        if hasattr(self, 'canvas') and self.canvas:
+        if self.canvas:
             self.canvas.get_tk_widget().destroy() # Use destroy for complete removal
         if self.fig:
             plt.close(self.fig) # Ensure figure is closed

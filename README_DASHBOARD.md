@@ -98,6 +98,57 @@ The trade context provides essential information about market conditions and tra
 }
 ```
 
+## Ordinal Pattern Trade Context
+
+The dashboard supports displaying ordinal pattern analysis in the trade context. To ensure proper display:
+
+1. **Ordinal Pattern Format**:
+   Trade recommendations should include ordinal pattern data in the TradeContext:
+
+   ```json
+   "TradeContext": {
+     "market_regime": {
+       "primary": "Bullish Trend",
+       "volatility": "Normal"
+     },
+     "ordinal_patterns": {
+       "delta": {
+         "pattern": [0, 1, 2],
+         "confidence": 0.85,
+         "expected_value": 0.045
+       },
+       "gamma": {
+         "pattern": [1, 0, 2],
+         "confidence": 0.75,
+         "expected_value": 0.02
+       },
+       "vanna": {
+         "pattern": [0, 2, 1],
+         "confidence": 0.65,
+         "expected_value": 0.03
+       }
+     }
+   }
+   ```
+
+2. **Creating Sample Recommendations**:
+   If you don't have any recommendations, you can create sample ones with:
+
+   ```bash
+   python create_sample_recommendations.py --num 10
+   ```
+
+3. **Ordinal Pattern Visualization**:
+   The dashboard will display ordinal patterns in the "Market Context" tab when available.
+
+4. **Pattern Interpretation**:
+   - [0,1,2]: Steadily increasing (bullish)
+   - [2,1,0]: Steadily decreasing (bearish)
+   - [1,0,2]: Down then up (reversal)
+   - [2,0,1]: Down sharply then up (reversal)
+   - [0,2,1]: Up then down (reversal)
+   - [1,2,0]: Up then down sharply (reversal)
+
 ## Strategy Types
 
 The dashboard supports multiple strategy types:
@@ -155,6 +206,58 @@ The Greek Analysis tab shows:
 2. **Dominant Greek**: The Greek currently dominating market behavior
 3. **Greek Anomalies**: Unusual patterns in Greek metrics
 4. **Energy Concentration**: Areas where Greek energy is concentrated
+
+## Pattern Analysis Tab
+
+The Pattern Analysis tab provides visualization and details about detected ordinal patterns in the Greek metrics. This tab is only visible when pattern data is available for the selected recommendation.
+
+### Pattern Information
+
+- **Pattern Name**: The identified pattern type (e.g., "Rising Vanna", "Gamma Compression")
+- **Pattern Confidence**: Confidence score for the pattern identification (0.0-1.0)
+- **Pattern Description**: Description of what the pattern indicates
+- **Pattern Statistics**: Statistical metrics related to the pattern
+- **Pattern Visualization**: Visual representation of the pattern
+
+### Using Pattern Analysis
+
+Pattern analysis provides additional context for trade decisions:
+
+1. **High Confidence Patterns**: Patterns with confidence scores above 0.7 are more reliable
+2. **Pattern Duration**: Check the expected duration of the pattern effect
+3. **Pattern Correlation**: Some patterns have strong correlations with specific market moves
+
+## Standardizing Trade Recommendations
+
+To ensure your custom trade recommendations work with the dashboard, use the unified trade format utility:
+
+```python
+from utils.unified_trade_format import standardize_trade_context
+
+# Your custom recommendation
+my_recommendation = {
+    "symbol": "AAPL",
+    "trade_type": "LONG",
+    "entry_price": 150.25,
+    "target_price": 165.50,
+    "stop_price": 145.00,
+    "trade_context": {
+        "market_regime": "Bullish",
+        "volatility_regime": "Normal"
+    }
+}
+
+# Standardize the recommendation
+standardized_rec = standardize_trade_context(my_recommendation)
+
+# Now it will work with the dashboard
+```
+
+You can also batch convert recommendations:
+
+```bash
+python -m utils.unified_trade_format --input "your_recs_dir" --batch
+```
 
 ## Troubleshooting
 
@@ -224,3 +327,56 @@ Contributions to the dashboard are welcome! Please follow these steps:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Dashboard Setup Requirements
+
+### Required Files
+
+The dashboard requires specific files to function properly:
+
+1. **Market Regime Files**:
+   - Primary: `results/market_regime/current_regime.json`
+   - Format:
+     ```json
+     {
+       "primary_label": "Bullish Trend",
+       "secondary_label": "Secondary Classification",
+       "volatility_regime": "Normal",
+       "dominant_greek": "Delta",
+       "timestamp": "2023-05-06T12:00:00"
+     }
+     ```
+   - Create this file using: `python create_market_regime.py`
+
+2. **Trade Recommendation Files**:
+   - Located in: `results/` directory
+   - Naming: `{symbol}_trade_recommendation.json` or `{symbol}_enhanced_recommendation.json`
+   - Must include entry/exit prices and strategy information
+
+### Troubleshooting Dashboard Issues
+
+If the dashboard shows empty data or "Unknown" market regime:
+
+1. **Missing Market Regime**: 
+   ```bash
+   python create_market_regime.py
+   ```
+
+2. **Empty Trade Recommendations**:
+   ```bash
+   python -m utils.unified_trade_format --input "results" --batch
+   ```
+
+3. **Dashboard Display Issues**:
+   ```bash
+   python fix_dashboard.py
+   ```
+
+4. **Complete Reset and Setup**:
+   ```bash
+   fix_and_run_dashboard.bat
+   ```
+
+
+
+
