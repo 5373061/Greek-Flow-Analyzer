@@ -10,6 +10,8 @@ import sys
 import logging
 import tkinter as tk
 from datetime import datetime
+import re  # Add this import for regular expressions
+import shutil  # Make sure this is imported too
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +26,9 @@ logger = logging.getLogger("DashboardFixer")
 
 def fix_dashboard():
     """Fix the dashboard implementation."""
+    # Ensure re module is imported
+    import re
+    
     # Check if trade_dashboard.py exists
     dashboard_path = os.path.join("tools", "trade_dashboard.py")
     if not os.path.exists(dashboard_path):
@@ -224,3 +229,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

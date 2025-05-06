@@ -1,0 +1,36 @@
+{
+  "symbol": "SPY",
+  "strategy_name": "Greek Energy Flow",
+  "action": "BUY",
+  "timestamp": "2025-05-06T08:48:52.748205",
+  "risk_category": "MEDIUM",
+  "rr_ratio_str": "1:3",
+  "roi": 15.5,
+  "entry_zone": [
+    420.5,
+    422.75
+  ],
+  "stop_loss_percent": 2.5,
+  "profit_target_percent": 7.5,
+  "days_to_hold": 14,
+  "greek_analysis": {
+    "delta": 0.65,
+    "gamma": 0.08,
+    "vanna": 0.12,
+    "charm": -0.03
+  },
+  "market_context": {
+    "regime": "Bullish Trend",
+    "volatility_regime": "Normal"
+  },
+  "TradeContext": {
+    "market_regime": {
+      "primary": "Bullish Trend",
+      "volatility": "Normal",
+      "confidence": 0.85
+    },
+    "volatility_regime": "Normal",
+    "dominant_greek": "vanna",
+    "energy_state": "Accumulation"
+  }
+}

@@ -1,0 +1,1717 @@
+"""
+Trade Dashboard for Greek Energy Flow II
+
+This module provides an integrated dashboard for viewing trade recommendations
+and market regime information.
+"""
+
+import os
+import sys
+import json
+import logging
+import tkinter as tk
+from tkinter import ttk, messagebox
+from datetime import datetime
+import glob
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class IntegratedDashboard:
+    """Dashboard that integrates trade recommendations with market regime tracking."""
+    
+    def __init__(self, root, base_dir=None):
+        """Initialize the dashboard."""
+        self.root = root
+
+        # Set base directory (project root)
+        if base_dir is None:
+            self.base_dir = os.getcwd()
+        else:
+            self.base_dir = base_dir
+        
+        # Set results directory
+        self.results_dir = os.path.join(self.base_dir, "results")
+        
+        # Initialize data containers
+        self.recommendations = []
+        self.market_regimes = {}
+        self.regime_transitions = []
+        self.selected_recommendation = None
+        
+        # Set up the UI
+        self.setup_ui()
+        
+        # Load data
+        self.load_all_data()
+        
+        logger.info("Dashboard initialized")
+
+    def _print_debug_info(self):
+        """Print debug information about directories and paths."""
+        logger.debug(f"Current working directory: {os.getcwd()}")
+        logger.debug(f"Base directory: {self.base_dir}")
+        logger.debug(f"Results directory: {self.results_dir}")
+        
+        if os.path.exists(self.results_dir):
+            files = os.listdir(self.results_dir)
+            logger.debug(f"Files in results directory: {files}")
+        else:
+            logger.warning(f"Results directory does not exist: {self.results_dir}")
+
+    def _init_ui(self):
+        """Initialize the user interface components."""
+        # Set up the main window
+        self.root.title("Greek Energy Flow II - Trade Dashboard")
+        self.root.geometry("1200x800")
+        
+        # Create main frames
+        self.main_frame = ttk.Frame(self.root)
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Create status bar
+        self.status_frame = ttk.Frame(self.root)
+        self.status_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=5, pady=5)
+        
+        self.status_label = ttk.Label(self.status_frame, text="Ready")
+        self.status_label.pack(side=tk.LEFT)
+        
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(self.main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Create tabs
+        self.recommendations_tab = ttk.Frame(self.notebook)
+        self.market_context_tab = ttk.Frame(self.notebook)
+        self.details_tab = ttk.Frame(self.notebook)
+        
+        self.notebook.add(self.recommendations_tab, text="Recommendations")
+        self.notebook.add(self.market_context_tab, text="Market Context")
+        self.notebook.add(self.details_tab, text="Details")
+        
+        # Set up the recommendations tab
+        self._setup_recommendations_tab()
+        
+        # Set up the market context tab
+        self._setup_market_context_tab()
+        
+        # Set up the details tab
+        self._setup_details_tab()
+
+    def _setup_recommendations_tab(self):
+        """Set up the recommendations tab."""
+        # Create filter frame
+        self.filter_frame = ttk.LabelFrame(self.recommendations_tab, text="Filters")
+        self.filter_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Create recommendation list
+        self.recommendation_frame = ttk.Frame(self.recommendations_tab)
+        self.recommendation_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create treeview for recommendations
+        self.recommendation_tree = ttk.Treeview(self.recommendation_frame)
+        self.recommendation_tree.pack(fill=tk.BOTH, expand=True)
+
+    def _setup_market_context_tab(self):
+        """Set up the market context tab."""
+        self.market_info_frame = ttk.LabelFrame(self.market_context_tab, text="Current Market Regime")
+        self.market_info_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.regime_history_frame = ttk.LabelFrame(self.market_context_tab, text="Regime History")
+        self.regime_history_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    def _setup_details_tab(self):
+        """Set up the details tab."""
+        self.details_frame = ttk.Frame(self.details_tab)
+        self.details_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    def load_all_data(self):
+        """Load all data for the dashboard."""
+        # Load recommendations
+        self.load_recommendations()
+        
+        # Load market regimes
+        self.load_market_regimes()
+        
+        logger.info("All data loaded")
+
+    def load_recommendations(self, recommendations_dir="results/ml_predictions/recommendations"):
+        """Load recommendations from the results directory."""
+        self.recommendations = []
+        
+        # Check if directory exists
+        if not os.path.exists(recommendations_dir):
+            self.update_status(f"Recommendations directory not found: {recommendations_dir}")
+            return
+        
+        # Find all recommendation files
+        recommendation_files = []
+        for ext in ["*.json"]:
+            pattern = os.path.join(recommendations_dir, ext)
+            recommendation_files.extend(glob.glob(pattern))
+        
+        logger.info(f"Found {len(recommendation_files)} recommendation files")
+        
+        # Load each recommendation file
+        for file_path in recommendation_files:
+            try:
+                with open(file_path, 'r') as f:
+                    recommendation = json.load(f)
+                    
+                    # Format recommendation for dashboard
+                    formatted_rec = self.format_recommendation_for_dashboard(recommendation)
+                    
+                    # Add to list
+                    self.recommendations.append(formatted_rec)
+                    
+                    logger.debug(f"Loaded recommendation from {file_path}")
+            except Exception as e:
+                logger.error(f"Error loading recommendation from {file_path}: {e}")
+        
+        self.update_status(f"Loaded {len(self.recommendations)} recommendations")
+
+    def format_recommendation_for_dashboard(self, rec):
+        """Format recommendation data for the dashboard."""
+        # Create a new dictionary with the expected format
+        formatted = {}
+        
+        # Map basic fields
+        formatted["symbol"] = rec.get("Symbol", "Unknown")
+        formatted["strategy_name"] = rec.get("Strategy", "ML Enhanced")
+        formatted["action"] = rec.get("Action", "HOLD")
+        formatted["timestamp"] = rec.get("Timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        
+        # Map price data
+        formatted["current_price"] = 0.0  # We don't have this in the ML recommendations
+        formatted["entry_zone"] = [rec.get("Entry", 0.0), rec.get("Entry", 0.0)]
+        formatted["stop_loss_percent"] = 2.0  # Default value
+        formatted["profit_target_percent"] = 5.0  # Default value
+        
+        # Calculate risk-reward ratio
+        if rec.get("RiskReward", 0.0) > 0:
+            formatted["rr_ratio_str"] = f"{rec.get('RiskReward', 0.0):.1f}:1"
+        else:
+            formatted["rr_ratio_str"] = "N/A"
+        
+        # Map risk category
+        formatted["risk_category"] = "MEDIUM"  # Default value
+        
+        # Map market regime
+        formatted["market_regime"] = {
+            "primary_label": rec.get("Regime", "Unknown"),
+            "volatility_label": rec.get("VolRegime", "Unknown"),
+            "confidence": rec.get("Confidence", 0.5),
+            "source": "ML"
+        }
+        
+        # Add notes
+        formatted["notes"] = rec.get("Notes", "")
+        
+        # Add days to hold
+        formatted["days_to_hold"] = 7  # Default value
+        
+        # Add duration profile (default values)
+        formatted["duration_profile"] = {
+            "day_1": 0.2,
+            "day_3": 0.5,
+            "day_5": 0.7,
+            "day_7": 0.9,
+            "day_10": 1.0
+        }
+        
+        return formatted
+
+    def load_market_regimes(self, market_regimes_file="results/market_regimes.json"):
+        """Load market regimes from the results directory."""
+        self.market_regimes = {
+            "primary": "Unknown",
+            "volatility": "Unknown",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        # Check if file exists
+        if not os.path.exists(market_regimes_file):
+            logger.warning(f"Market regimes file not found: {market_regimes_file}")
+            
+            # Try to infer from recommendations
+            if self.recommendations:
+                # Use the first recommendation's regime
+                first_rec = self.recommendations[0]
+                market_regime = first_rec.get("market_regime", {})
+                
+                if market_regime:
+                    self.market_regimes["primary"] = market_regime.get("primary_label", "Unknown")
+                    self.market_regimes["volatility"] = market_regime.get("volatility_label", "Unknown")
+                    
+                    logger.info(f"Inferred market regimes from recommendations: {self.market_regimes}")
+        
+            return
+        
+        # Load market regimes
+        try:
+            with open(market_regimes_file, 'r') as f:
+                self.market_regimes = json.load(f)
+                
+                logger.info(f"Loaded market regimes: {self.market_regimes}")
+        except Exception as e:
+            logger.error(f"Error loading market regimes: {e}")
+
+    def update_status(self, message):
+        """Update the status bar with a message."""
+        self.status_var.set(message)
+        logger.info(message)
+
+    def process_recommendation(self, data, file_path):
+        """Process a recommendation from JSON data."""
+        try:
+            # Extract basic information
+            symbol = data.get("symbol", data.get("Symbol", "Unknown"))
+            action = data.get("action", data.get("Action", "BUY"))
+            strategy_name = data.get("strategy_name", data.get("Strategy", "Unknown"))
+            
+            # Extract price information
+            current_price = float(data.get("current_price", data.get("CurrentPrice", 0.0)))
+            
+            # Extract entry, target, and stop
+            entry_zone = data.get("entry_zone", [current_price * 0.99, current_price * 1.01])
+            profit_target = data.get("profit_target_percent", 5.0)
+            stop_loss = data.get("stop_loss_percent", 2.0)
+            
+            # Calculate risk-reward ratio
+            if stop_loss > 0:
+                rr_ratio = profit_target / stop_loss
+                rr_ratio_str = f"{rr_ratio:.1f}:1"
+            else:
+                rr_ratio_str = "N/A"
+            
+            # Extract other information
+            risk_category = data.get("risk_category", "MEDIUM")
+            days_to_hold = data.get("days_to_hold", 7)
+            roi = data.get("roi", 0.0)
+            timestamp = data.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            
+            # Create standardized recommendation
+            standardized = {
+                "symbol": symbol,
+                "action": action,
+                "strategy_name": strategy_name,
+                "risk_category": risk_category,
+                "current_price": float(current_price),
+                "entry_zone": entry_zone, # List [low, high]
+                "profit_target_percent": profit_target,
+                "stop_loss_percent": stop_loss,
+                "rr_ratio_str": rr_ratio_str, # Add R:R string
+                "days_to_hold": days_to_hold,
+                "roi": roi,
+                "timestamp": timestamp,
+                "file_path": file_path,
+                "raw_data": data  # Store the original data for reference
+            }
+            
+            return standardized
+            
+        except Exception as e:
+            logger.error(f"Error processing recommendation: {e}")
+            return None
+
+    def load_market_regime_data(self):
+        """Load general market regime data from various potential files."""
+        self.market_regimes = {}
+        logger.info("Attempting to load market regime data...")
+        self.update_status("Loading market regime data...")
+
+        # Look for market regime data in prioritized order
+        regime_paths = [
+            os.path.join(self.results_dir, "market_regime", "current_regime.json"),
+            os.path.join(self.results_dir, "market_regime_summary.json"),
+            os.path.join(self.results_dir, "regime_validation.json"),
+            os.path.join(self.results_dir, "market_bias.json"),
+        ]
+        
+        loaded_successfully = False
+        
+        for path in regime_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r") as f:
+                        regime_data = json.load(f)
+                    
+                    if isinstance(regime_data, dict):
+                        # Process the regime data
+                        processed_regime = self.process_regime_data(regime_data, path)
+                        
+                        # Store the processed data
+                        self.market_regimes = processed_regime
+                        logger.info(f"Successfully loaded and processed market regime data from {path}")
+                        loaded_successfully = True
+                        break # Stop after loading the first valid file
+                    else:
+                        logger.warning(f"Regime data in {path} is not a dictionary, skipping.")
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error loading market regime data from {path}: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing market regime data from {path}: {e}", exc_info=True)
+            else:
+                 logger.debug(f"Regime file not found: {path}")
+
+        if loaded_successfully:
+             self.update_status("Market regime data loaded.", "success")
+             self.update_market_context_display() # Update the display immediately
+             self.update_regime_transitions() # Record today's regime
+        else:
+             logger.warning("Could not find or load any valid market regime file.")
+             self.update_status("Market regime data not found.", "warning")
+             self.update_market_context_display() # Update display to show "Unknown"
+
+    def process_regime_data(self, data, source_path):
+        """Process market regime data from various formats."""
+        # This is a placeholder - implement based on your data format
+        return data
+
+    def update_regime_transitions(self):
+        """Update the regime transitions list with the current regime."""
+        # Initialize if empty
+        if not hasattr(self, 'regime_transitions') or self.regime_transitions is None:
+            self.regime_transitions = []
+        
+        # If no market regimes, nothing to update
+        if not self.market_regimes:
+            return
+        
+        # Get current date
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get current regimes
+        primary = self.market_regimes.get("primary", "Unknown")
+        volatility = self.market_regimes.get("volatility", "Normal")
+        
+        # Create transition record
+        transition = {
+            "date": today,
+            "primary": primary,
+            "volatility": volatility,
+            "confidence": self.market_regimes.get("confidence", 0.0)
+        }
+        
+        # Add to transitions list if it's a new day or different regime
+        if not self.regime_transitions or self.regime_transitions[-1]["date"] != today:
+            self.regime_transitions.append(transition)
+            logger.info(f"Added new regime transition for {today}: {primary} / {volatility}")
+        elif (self.regime_transitions[-1]["primary"] != primary or 
+              self.regime_transitions[-1]["volatility"] != volatility):
+            self.regime_transitions.append(transition)
+            logger.info(f"Updated regime transition for {today}: {primary} / {volatility}")
+
+    def load_energy_and_reset_data(self):
+        """Load energy levels, reset points, and instrument regimes from analysis files."""
+        self.energy_levels = {}
+        self.reset_points = {}
+        self.instrument_regimes = {} # Reset instrument regimes here
+        
+        # Placeholder - implement based on your data format
+        logger.info("Loading energy and reset data...")
+
+    def extract_energy_and_reset_from_recommendations(self):
+        """Extract energy levels and reset points directly from recommendations."""
+        self.energy_levels = {}
+        self.reset_points = {}
+        
+        # Placeholder - implement based on your data format
+        logger.info("Extracting energy and reset data from recommendations...")
+
+    def load_greek_data(self):
+        """Load Greek metrics from analysis files."""
+        self.greek_data = {}
+        
+        # Placeholder - implement based on your data format
+        logger.info("Loading Greek data...")
+
+    def extract_greek_data_from_recommendations(self):
+        """Extract Greek data directly from recommendations."""
+        self.greek_data = {}
+        
+        # Placeholder - implement based on your data format
+        logger.info("Extracting Greek data from recommendations...")
+
+    def load_trade_duration_data(self):
+        """Load trade duration data from analysis files."""
+        self.trade_durations = {}
+        
+        # Placeholder - implement based on your data format
+        logger.info("Loading trade duration data...")
+
+    def extract_duration_from_recommendations(self):
+        """Extract trade duration data directly from recommendations."""
+        self.trade_durations = {}
+        
+        # Placeholder - implement based on your data format
+        logger.info("Extracting trade duration data from recommendations...")
+
+    def extract_market_regime_from_recommendations(self):
+        """
+        Extract market regime information from loaded recommendations.
+        
+        Returns:
+            dict: Market regime information
+        """
+        # Default regime information
+        regime_info = {
+            "primary": "Neutral",
+            "volatility": "Normal",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        # Try to extract from recommendations
+        if self.recommendations:
+            # Count regimes
+            regime_counts = {}
+            vol_regime_counts = {}
+            
+            for rec in self.recommendations:
+                # Extract primary regime
+                regime = rec.get("Regime", "")
+                if regime:
+                    regime_counts[regime] = regime_counts.get(regime, 0) + 1
+            
+                # Extract volatility regime
+                vol_regime = rec.get("VolRegime", "")
+                if vol_regime:
+                    vol_regime_counts[vol_regime] = vol_regime_counts.get(vol_regime, 0) + 1
+            
+                # Extract from TradeContext if available
+                trade_context = rec.get("TradeContext", {})
+                if trade_context:
+                    market_regime = trade_context.get("market_regime", "")
+                    if market_regime:
+                        regime_counts[market_regime] = regime_counts.get(market_regime, 0) + 1
+                
+                    vol_regime = trade_context.get("volatility_regime", "")
+                    if vol_regime:
+                        vol_regime_counts[vol_regime] = vol_regime_counts.get(vol_regime, 0) + 1
+        
+            # Find most common regimes
+            if regime_counts:
+                regime_info["primary"] = max(regime_counts.items(), key=lambda x: x[1])[0]
+        
+            if vol_regime_counts:
+                regime_info["volatility"] = max(vol_regime_counts.items(), key=lambda x: x[1])[0]
+        
+        logger.info(f"Inferred market regimes from recommendations: {regime_info}")
+        return regime_info
+
+    def update_market_context_display(self):
+        """Update the market context display with current regime information."""
+        # Clear existing widgets
+        for widget in self.market_info_frame.winfo_children():
+            widget.destroy()
+        
+        # If no market regime data, show a message
+        if not self.market_regimes:
+            ttk.Label(self.market_info_frame, text="No market regime data available").pack(pady=20)
+            return
+        
+        # Create a frame for the market regime info
+        info_frame = ttk.Frame(self.market_info_frame)
+        info_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Display market regime information
+        row = 0
+        ttk.Label(info_frame, text="Current Market Regime:", font=("Arial", 12, "bold")).grid(row=row, column=0, sticky=tk.W, pady=5)
+        row += 1
+        
+        # Primary regime
+        primary = self.market_regimes.get("primary", "Unknown")
+        ttk.Label(info_frame, text="Primary Regime:").grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(info_frame, text=primary).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Volatility regime
+        volatility = self.market_regimes.get("volatility", "Normal")
+        ttk.Label(info_frame, text="Volatility Regime:").grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(info_frame, text=volatility).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Confidence
+        confidence = self.market_regimes.get("confidence", 0.0)
+        ttk.Label(info_frame, text="Confidence:").grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(info_frame, text=f"{confidence:.2f}").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Last updated
+        last_updated = self.market_regimes.get("timestamp", "Unknown")
+        ttk.Label(info_frame, text="Last Updated:").grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(info_frame, text=last_updated).grid(row=row, column=1, sticky=tk.W, pady=2)
+
+    def is_aligned_with_market_regime(self, rec):
+        """Check if recommendation aligns with the CURRENT general market regime."""
+        if not rec or not isinstance(rec, dict): return False
+        symbol = rec.get("symbol", "")
+
+        # Get current market regime (primary label)
+        if not self.market_regimes:
+            return False
+        current_regime = self.market_regimes.get("primary", {}).get("primary_label", "Unknown")
+
+        # Get recommendation's regime
+        rec_regime = rec.get("raw_data", {}).get("market_regime", {}).get("primary_label", "Unknown")
+
+        # Check if the recommendation's regime matches the current market regime
+        return rec_regime == current_regime
+
+    def initialize_ui(self):
+        """Initialize the UI components."""
+        # Create main frames
+        self.main_frame = ttk.Frame(self.root)
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create a notebook for tabs
+        self.notebook = ttk.Notebook(self.main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create tabs
+        self.recommendations_tab = ttk.Frame(self.notebook)
+        self.market_tab = ttk.Frame(self.notebook)
+        self.analysis_tab = ttk.Frame(self.notebook)
+        
+        self.notebook.add(self.recommendations_tab, text="Recommendations")
+        self.notebook.add(self.market_tab, text="Market Regime")
+        self.notebook.add(self.analysis_tab, text="Analysis")
+        
+        # Create market info frame in the market tab
+        self.market_info_frame = ttk.LabelFrame(self.market_tab, text="Market Regime Information")
+        self.market_info_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Create recommendations frame in the recommendations tab
+        self.recommendations_frame = ttk.Frame(self.recommendations_tab)
+        self.recommendations_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Create filter frame
+        self.filter_frame = ttk.LabelFrame(self.recommendations_frame, text="Filters")
+        self.filter_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Create filter controls
+        self.create_filter_controls()
+        
+        # Create recommendation list
+        self.create_recommendation_list()
+        
+        # Create detail view
+        self.create_detail_view()
+        
+        # Create status bar
+        self.status_var = tk.StringVar()
+        self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Set initial status
+        self.update_status("Ready")
+        
+        logger.info("UI setup complete")
+
+    def create_filter_controls(self):
+        """Create filter controls for recommendations."""
+        # Create filter variables
+        self.strategy_var = tk.StringVar(value="All")
+        self.risk_var = tk.StringVar(value="All")
+        self.regime_var = tk.StringVar(value="All")
+        self.aligned_var = tk.BooleanVar(value=False)
+        
+        # Create filter controls
+        filter_controls = ttk.Frame(self.filter_frame)
+        filter_controls.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Strategy filter
+        ttk.Label(filter_controls, text="Strategy:").grid(row=0, column=0, padx=5, pady=2, sticky=tk.W)
+        self.strategy_combo = ttk.Combobox(filter_controls, textvariable=self.strategy_var, state="readonly")
+        self.strategy_combo.grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
+        self.strategy_combo['values'] = ['All', 'Momentum', 'Mean Reversion', 'Volatility Expansion', 'Greek Flow', 'ML Enhanced']
+        
+        # Risk filter
+        ttk.Label(filter_controls, text="Risk:").grid(row=0, column=2, padx=5, pady=2, sticky=tk.W)
+        self.risk_combo = ttk.Combobox(filter_controls, textvariable=self.risk_var, state="readonly")
+        self.risk_combo.grid(row=0, column=3, padx=5, pady=2, sticky=tk.W)
+        self.risk_combo['values'] = ['All', 'LOW', 'MEDIUM', 'HIGH']
+        
+        # Regime filter
+        ttk.Label(filter_controls, text="Regime:").grid(row=1, column=0, padx=5, pady=2, sticky=tk.W)
+        self.regime_combo = ttk.Combobox(filter_controls, textvariable=self.regime_var, state="readonly")
+        self.regime_combo.grid(row=1, column=1, padx=5, pady=2, sticky=tk.W)
+        self.regime_combo['values'] = ['All', 'Bullish', 'Bearish', 'Neutral', 'Volatile', 'Calm']
+        
+        # Aligned with market checkbox
+        self.aligned_check = ttk.Checkbutton(filter_controls, text="Aligned with Market", variable=self.aligned_var)
+        self.aligned_check.grid(row=1, column=2, columnspan=2, padx=5, pady=2, sticky=tk.W)
+        
+        # Apply filters button
+        self.apply_button = ttk.Button(filter_controls, text="Apply Filters", command=self.apply_filters)
+        self.apply_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky=tk.W)
+        
+        # Reset filters button
+        self.reset_button = ttk.Button(filter_controls, text="Reset Filters", command=self.reset_filters)
+        self.reset_button.grid(row=2, column=2, columnspan=2, padx=5, pady=5, sticky=tk.W)
+        
+        # Bind events
+        self.strategy_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_filters())
+        self.risk_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_filters())
+        self.regime_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_filters())
+        self.aligned_check.bind("<Button-1>", lambda e: self.root.after(100, self.apply_filters))
+
+    def create_recommendation_list(self):
+        """Create the recommendation list view."""
+        # Create frame for recommendation list
+        list_frame = ttk.LabelFrame(self.recommendations_frame, text="Trade Recommendations")
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create treeview for recommendations
+        columns = ("Symbol", "Strategy", "Entry", "Stop", "Target", "R:R", "Risk")
+        self.recommendation_tree = ttk.Treeview(list_frame, columns=columns, show="headings", selectmode="browse")
+        
+        # Configure columns
+        self.recommendation_tree.heading("Symbol", text="Symbol")
+        self.recommendation_tree.heading("Strategy", text="Strategy")
+        self.recommendation_tree.heading("Entry", text="Entry")
+        self.recommendation_tree.heading("Stop", text="Stop")
+        self.recommendation_tree.heading("Target", text="Target")
+        self.recommendation_tree.heading("R:R", text="R:R")
+        self.recommendation_tree.heading("Risk", text="Risk")
+        
+        # Set column widths
+        self.recommendation_tree.column("Symbol", width=80)
+        self.recommendation_tree.column("Strategy", width=120)
+        self.recommendation_tree.column("Entry", width=80)
+        self.recommendation_tree.column("Stop", width=80)
+        self.recommendation_tree.column("Target", width=80)
+        self.recommendation_tree.column("R:R", width=60)
+        self.recommendation_tree.column("Risk", width=60)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.recommendation_tree.yview)
+        self.recommendation_tree.configure(yscroll=scrollbar.set)
+        
+        # Pack treeview and scrollbar
+        self.recommendation_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind selection event
+        self.recommendation_tree.bind("<<TreeviewSelect>>", self.on_recommendation_selected)
+        
+        # Define tags for different recommendation types
+        self.recommendation_tree.tag_configure("buy", background="#e6ffe6")  # Light green
+        self.recommendation_tree.tag_configure("sell", background="#ffe6e6")  # Light red
+        self.recommendation_tree.tag_configure("hold", background="#f0f0f0")  # Light gray
+        self.recommendation_tree.tag_configure("aligned", foreground="#006600")  # Dark green text
+
+    def create_detail_view(self):
+        """Create the detail view for selected recommendations."""
+        # Create frame for detail view
+        self.detail_frame = ttk.LabelFrame(self.recommendations_frame, text="Recommendation Details")
+        self.detail_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create notebook for detail tabs
+        self.detail_notebook = ttk.Notebook(self.detail_frame)
+        self.detail_notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create tabs for different aspects of the recommendation
+        self.summary_tab = ttk.Frame(self.detail_notebook)
+        self.entry_exit_tab = ttk.Frame(self.detail_notebook)
+        self.greeks_tab = ttk.Frame(self.detail_notebook)
+        self.market_context_tab = ttk.Frame(self.detail_notebook)
+        self.regime_tab = ttk.Frame(self.detail_notebook)
+        self.duration_tab = ttk.Frame(self.detail_notebook)
+        
+        # Add tabs to notebook
+        self.detail_notebook.add(self.summary_tab, text="Summary")
+        self.detail_notebook.add(self.entry_exit_tab, text="Entry/Exit")
+        self.detail_notebook.add(self.greeks_tab, text="Greeks")
+        self.detail_notebook.add(self.market_context_tab, text="Market Context")
+        self.detail_notebook.add(self.regime_tab, text="Regime")
+        self.detail_notebook.add(self.duration_tab, text="Duration")
+        
+        # Initialize detail view with empty data
+        self.clear_detail_view()
+
+    def update_status(self, message, status_type="info"):
+        """Update the status bar with a message and log it."""
+        # Ensure UI elements exist before trying to configure them
+        if not hasattr(self, 'status_var'):
+            print(f"Status update (UI not ready): [{status_type.upper()}] {message}")
+            return
+
+        try:
+            # Set color based on status type
+            color = {
+                "info": "black",
+                "success": "green",
+                "warning": "orange",
+                "error": "red"
+            }.get(status_type, "black")
+
+            # Update status label
+            self.status_var.set(message)
+            self.status_bar.config(foreground=color)
+            self.root.update_idletasks()
+
+            # Log the status message
+            if status_type == "error":
+                logger.error(message)
+            elif status_type == "warning":
+                logger.warning(message)
+            else:  # info, success
+                logger.info(message)
+        except Exception as e:
+            # Log error updating status itself, avoid recursive calls
+            logger.error(f"Internal error updating status bar: {e}")
+
+    def apply_filters(self, update_ui=True):
+        """Apply filters and return filtered recommendations. Optionally update UI."""
+        logger.debug("Applying filters...")
+        filtered = self.recommendations.copy()  # Start with all recommendations
+
+        # Get filter values
+        selected_strategy = self.strategy_var.get()
+        selected_risk = self.risk_var.get()
+        selected_regime = self.regime_var.get()
+        show_aligned_only = self.aligned_var.get()
+
+        # Apply strategy filter
+        if selected_strategy != "All":
+            filtered = [rec for rec in filtered
+                      if rec.get("strategy_name", rec.get("Strategy", "Unknown")) == selected_strategy]
+        
+        # Apply risk filter
+        if selected_risk != "All":
+            filtered = [rec for rec in filtered
+                      if rec.get("risk_category", "MEDIUM") == selected_risk]
+        
+        # Apply regime filter
+        if selected_regime != "All":
+            filtered = [rec for rec in filtered
+                      if rec.get("Regime", rec.get("market_regime", {}).get("primary_label", "Unknown")) == selected_regime]
+        
+        # Apply aligned filter
+        if show_aligned_only:
+            filtered = [rec for rec in filtered if self.is_aligned_with_market_regime(rec)]
+        
+        # Update UI if requested
+        if update_ui:
+            self.update_recommendation_list(filtered)
+        
+        return filtered
+
+    def reset_filters(self):
+        """Reset all filters to default values."""
+        self.strategy_var.set("All")
+        self.risk_var.set("All")
+        self.regime_var.set("All")
+        self.aligned_var.set(False)
+        self.apply_filters()
+
+    def is_aligned_with_market_regime(self, recommendation):
+        """Check if a recommendation is aligned with the current market regime."""
+        if not self.market_regimes:
+            return False
+        
+        # Get market regime
+        market_regime = self.market_regimes.get("primary", "Unknown")
+        
+        # Get recommendation action
+        action = recommendation.get("action", recommendation.get("Action", "HOLD"))
+        
+        # Get recommendation regime
+        rec_regime = recommendation.get("Regime", recommendation.get("market_regime", {}).get("primary_label", "Unknown"))
+        
+        # Check alignment
+        if market_regime == "Bullish" and action == "BUY":
+            return True
+        elif market_regime == "Bearish" and action == "SELL":
+            return True
+        elif market_regime == rec_regime:
+            return True
+        
+        return False
+
+    def update_recommendation_list(self, filtered_recs=None):
+        """Update the recommendation list with filtered recommendations."""
+        # Clear existing items
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Use filtered recommendations if provided, otherwise apply filters
+        if filtered_recs is None:
+            filtered_recs = self.apply_filters(update_ui=False)
+        
+        # Debug log the number of recommendations
+        logger.info(f"Displaying {len(filtered_recs)} recommendations in the UI")
+        
+        # Add recommendations to the tree
+        for rec in filtered_recs:
+            # Extract values
+            symbol = rec.get("Symbol", "Unknown")
+            action = rec.get("Action", "Unknown")
+            strategy = rec.get("Strategy", rec.get("strategy_name", "Unknown"))
+            entry_zone = rec.get("EntryZone", {})
+            entry_zone_str = f"{entry_zone.get('low', 0):.2f}-{entry_zone.get('high', 0):.2f}" if isinstance(entry_zone, dict) else str(entry_zone)
+            target_pct = f"{rec.get('TargetPercent', 0):.2f}%"
+            stop_pct = f"{rec.get('StopPercent', 0):.2f}%"
+            days = rec.get("days_to_hold", 7)
+            risk = rec.get("risk_category", "MEDIUM")
+            
+            # Determine tags for styling
+            tags = []
+            
+            # Add action tag
+            if action.upper() == "BUY":
+                tags.append("bullish")
+            elif action.upper() == "SELL":
+                tags.append("bearish")
+            else:
+                tags.append("neutral")
+            
+            # Add risk tag
+            if risk.upper() == "HIGH":
+                tags.append("high")
+            elif risk.upper() == "LOW":
+                tags.append("low")
+            else:
+                tags.append("medium")
+            
+            # Add aligned tag if recommendation aligns with market regime
+            if self.is_aligned_with_market_regime(rec):
+                tags.append("aligned")
+            
+            # Add to tree with appropriate tags
+            self.tree.insert("", tk.END, values=(
+                symbol, action, strategy, entry_zone_str, target_pct, stop_pct, days, risk
+            ), tags=tags)
+        
+        # Select the first item if available
+        if self.tree.get_children():
+            first_item = self.tree.get_children()[0]
+            self.tree.selection_set(first_item)
+            self.tree.focus(first_item)
+            self.on_recommendation_select(None)  # Trigger selection event
+        else:
+            # No recommendations available
+            self.update_status("No recommendations found matching the current filters")
+        
+        logger.info(f"Populated dashboard with {len(filtered_recs)} recommendations")
+
+    def on_recommendation_selected(self, event):
+        """Handle selection of a recommendation in the tree."""
+        # Get selected item
+        selection = self.recommendation_tree.selection()
+        if not selection:
+            return
+        
+        # Get selected item values
+        item = selection[0]
+        values = self.recommendation_tree.item(item, "values")
+        
+        # Find corresponding recommendation
+        symbol = values[0]
+        strategy = values[1]
+        selected_rec = None
+        
+        for rec in self.recommendations:
+            rec_symbol = rec.get("symbol", rec.get("Symbol", "Unknown"))
+            rec_strategy = rec.get("strategy_name", rec.get("Strategy", "Unknown"))
+            
+            if rec_symbol == symbol and rec_strategy == strategy:
+                selected_rec = rec
+                break
+        
+        # Update detail view
+        if selected_rec:
+            self.update_detail_view(selected_rec)
+        else:
+            self.clear_detail_view()
+
+    def clear_detail_view(self):
+        """Clear the detail view."""
+        # Clear each tab
+        for tab in [self.summary_tab, self.entry_exit_tab, self.greeks_tab, 
+                    self.market_context_tab, self.regime_tab, self.duration_tab]:
+            for widget in tab.winfo_children():
+                widget.destroy()
+            
+            # Add placeholder text
+            ttk.Label(tab, text="No recommendation selected").pack(pady=20)
+
+    def load_ml_prediction(self, ticker, ml_predictions_dir="results/ml_predictions"):
+        """Load ML prediction data for a specific ticker."""
+        prediction_file = os.path.join(ml_predictions_dir, f"{ticker}_ml_prediction.json")
+        
+        if not os.path.exists(prediction_file):
+            logger.warning(f"ML prediction file not found: {prediction_file}")
+            return None
+        
+        try:
+            with open(prediction_file, 'r') as f:
+                prediction = json.load(f)
+                
+                logger.debug(f"Loaded ML prediction for {ticker}")
+                return prediction
+        except Exception as e:
+            logger.error(f"Error loading ML prediction for {ticker}: {e}")
+            return None
+
+    def update_detail_view(self, recommendation):
+        """Update the detail view with the selected recommendation."""
+        # Clear existing widgets
+        self.clear_detail_view()
+        
+        # Try to load ML prediction data
+        ticker = recommendation.get("symbol", "")
+        ml_prediction = None
+        if ticker:
+            ml_prediction = self.load_ml_prediction(ticker)
+            
+            # If ML prediction found, enhance recommendation with it
+            if ml_prediction:
+                # Add ML prediction data to recommendation
+                recommendation["ml_prediction"] = ml_prediction
+                
+                # Add trade signals if available
+                trade_signals = ml_prediction.get("trade_signals", {})
+                if trade_signals:
+                    recommendation["trade_signals"] = trade_signals
+                
+                # Add entropy patterns if available
+                entropy_patterns = ml_prediction.get("entropy_patterns", [])
+                if entropy_patterns:
+                    recommendation["entropy_patterns"] = entropy_patterns
+        
+        # Update summary tab
+        self.update_summary_tab(recommendation)
+        
+        # Update entry/exit tab
+        self.update_entry_exit_tab(recommendation)
+        
+        # Update Greeks tab
+        self.update_greeks_tab(recommendation)
+        
+        # Update market context tab
+        self.update_market_context_tab(recommendation)
+        
+        # Update regime tab
+        self.update_regime_tab(recommendation)
+        
+        # Update duration tab
+        self.update_duration_tab(recommendation)
+
+    def update_summary_tab(self, recommendation):
+        """Update the summary tab with recommendation data."""
+        # Clear existing widgets
+        for widget in self.summary_tab.winfo_children():
+            widget.destroy()
+        
+        # Create frame for summary info
+        summary_frame = ttk.Frame(self.summary_tab)
+        summary_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Extract data
+        symbol = recommendation.get("symbol", recommendation.get("Symbol", "Unknown"))
+        strategy = recommendation.get("strategy_name", recommendation.get("Strategy", "Unknown"))
+        action = recommendation.get("action", recommendation.get("Action", "HOLD"))
+        timestamp = recommendation.get("timestamp", "Unknown")
+        
+        # Display summary information
+        row = 0
+        ttk.Label(summary_frame, text="Symbol:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(summary_frame, text=symbol).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(summary_frame, text="Strategy:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(summary_frame, text=strategy).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(summary_frame, text="Action:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        action_label = ttk.Label(summary_frame, text=action)
+        action_label.grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Color code the action
+        if action.upper() == "BUY":
+            action_label.configure(foreground="green")
+        elif action.upper() == "SELL":
+            action_label.configure(foreground="red")
+        
+        ttk.Label(summary_frame, text="Timestamp:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(summary_frame, text=timestamp).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Add separator
+        ttk.Separator(summary_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display risk information
+        risk_category = recommendation.get("risk_category", "MEDIUM")
+        rr_ratio = recommendation.get("rr_ratio_str", "N/A")
+        roi = recommendation.get("roi", "N/A")
+        
+        ttk.Label(summary_frame, text="Risk Category:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        risk_label = ttk.Label(summary_frame, text=risk_category)
+        risk_label.grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Color code the risk
+        if risk_category == "LOW":
+            risk_label.configure(foreground="green")
+        elif risk_category == "MEDIUM":
+            risk_label.configure(foreground="orange")
+        elif risk_category == "HIGH":
+            risk_label.configure(foreground="red")
+        
+        ttk.Label(summary_frame, text="Risk/Reward:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(summary_frame, text=rr_ratio).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(summary_frame, text="Expected ROI:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(summary_frame, text=f"{roi}%" if isinstance(roi, (int, float)) else roi).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Add separator
+        ttk.Separator(summary_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display market regime alignment
+        market_regime = self.market_regimes.get("primary", "Unknown")
+        is_aligned = self.is_aligned_with_market_regime(recommendation)
+        
+        ttk.Label(summary_frame, text="Market Regime:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(summary_frame, text=market_regime).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(summary_frame, text="Aligned with Market:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        aligned_label = ttk.Label(summary_frame, text="Yes" if is_aligned else "No")
+        aligned_label.grid(row=row, column=1, sticky=tk.W, pady=2)
+        
+        # Color code alignment
+        if is_aligned:
+            aligned_label.configure(foreground="green")
+        else:
+            aligned_label.configure(foreground="red")
+
+    def update_entry_exit_tab(self, recommendation):
+        """Update the entry/exit tab with recommendation data."""
+        # Clear existing widgets
+        for widget in self.entry_exit_tab.winfo_children():
+            widget.destroy()
+        
+        # Create frame for entry/exit info
+        entry_exit_frame = ttk.Frame(self.entry_exit_tab)
+        entry_exit_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Extract data
+        current_price = recommendation.get("current_price", 0.0)
+        entry_zone = recommendation.get("entry_zone", [0.0, 0.0])
+        stop_loss_percent = recommendation.get("stop_loss_percent", 0.0)
+        profit_target_percent = recommendation.get("profit_target_percent", 0.0)
+        days_to_hold = recommendation.get("days_to_hold", "N/A")
+        
+        # Calculate stop and target prices
+        if isinstance(entry_zone, list) and len(entry_zone) >= 2:
+            entry_mid = (entry_zone[0] + entry_zone[1]) / 2
+        else:
+            entry_mid = current_price
+        
+        stop_price = entry_mid * (1 - stop_loss_percent/100) if stop_loss_percent else None
+        target_price = entry_mid * (1 + profit_target_percent/100) if profit_target_percent else None
+        
+        # Display entry/exit information
+        row = 0
+        ttk.Label(entry_exit_frame, text="Current Price:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(entry_exit_frame, text=f"${current_price:.2f}").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(entry_exit_frame, text="Entry Zone:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        if isinstance(entry_zone, list) and len(entry_zone) >= 2:
+            ttk.Label(entry_exit_frame, text=f"${entry_zone[0]:.2f} - ${entry_zone[1]:.2f}").grid(row=row, column=1, sticky=tk.W, pady=2)
+        else:
+            ttk.Label(entry_exit_frame, text=f"${entry_mid:.2f}").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(entry_exit_frame, text="Stop Loss:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        if stop_price:
+            ttk.Label(entry_exit_frame, text=f"${stop_price:.2f} ({stop_loss_percent:.1f}%)").grid(row=row, column=1, sticky=tk.W, pady=2)
+        else:
+            ttk.Label(entry_exit_frame, text="N/A").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(entry_exit_frame, text="Profit Target:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        if target_price:
+            ttk.Label(entry_exit_frame, text=f"${target_price:.2f} ({profit_target_percent:.1f}%)").grid(row=row, column=1, sticky=tk.W, pady=2)
+        else:
+            ttk.Label(entry_exit_frame, text="N/A").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(entry_exit_frame, text="Days to Hold:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(entry_exit_frame, text=str(days_to_hold)).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Add separator
+        ttk.Separator(entry_exit_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display risk/reward information
+        risk_amount = (entry_mid - stop_price) if stop_price else None
+        reward_amount = (target_price - entry_mid) if target_price else None
+        
+        ttk.Label(entry_exit_frame, text="Risk Amount:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        if risk_amount:
+            ttk.Label(entry_exit_frame, text=f"${risk_amount:.2f} per share").grid(row=row, column=1, sticky=tk.W, pady=2)
+        else:
+            ttk.Label(entry_exit_frame, text="N/A").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(entry_exit_frame, text="Reward Amount:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        if reward_amount:
+            ttk.Label(entry_exit_frame, text=f"${reward_amount:.2f} per share").grid(row=row, column=1, sticky=tk.W, pady=2)
+        else:
+            ttk.Label(entry_exit_frame, text="N/A").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(entry_exit_frame, text="Risk/Reward Ratio:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        rr_ratio = recommendation.get("rr_ratio_str", "N/A")
+        ttk.Label(entry_exit_frame, text=rr_ratio).grid(row=row, column=1, sticky=tk.W, pady=2)
+
+    def update_greeks_tab(self, recommendation):
+        """Update the Greeks tab with recommendation data."""
+        # Clear existing widgets
+        for widget in self.greeks_tab.winfo_children():
+            widget.destroy()
+        
+        # Create frame for Greek info
+        greek_frame = ttk.Frame(self.greeks_tab)
+        greek_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Extract Greek data
+        greek_data = recommendation.get("greek_data", {})
+        if not greek_data:
+            ttk.Label(greek_frame, text="No Greek data available").pack(pady=20)
+            return
+        
+        # Display Greek values
+        row = 0
+        for greek, value in greek_data.items():
+            if greek == "magnitudes":
+                continue  # Skip magnitudes, we'll display them separately
+        
+            ttk.Label(greek_frame, text=f"{greek.capitalize()}:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+            ttk.Label(greek_frame, text=f"{value:.4f}" if isinstance(value, (int, float)) else str(value)).grid(row=row, column=1, sticky=tk.W, pady=2)
+            row += 1
+        
+        # Add separator
+        ttk.Separator(greek_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display Greek magnitudes
+        ttk.Label(greek_frame, text="Greek Magnitudes:", font=("Arial", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+        row += 1
+        
+        magnitudes = greek_data.get("magnitudes", {})
+        for greek, magnitude in magnitudes.items():
+            greek_name = greek.replace("_magnitude", "").capitalize()
+            ttk.Label(greek_frame, text=f"{greek_name}:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+            
+            magnitude_label = ttk.Label(greek_frame, text=magnitude)
+            magnitude_label.grid(row=row, column=1, sticky=tk.W, pady=2)
+            
+            # Color code the magnitude
+            if magnitude == "HIGH":
+                magnitude_label.configure(foreground="red")
+            elif magnitude == "MEDIUM":
+                magnitude_label.configure(foreground="orange")
+            elif magnitude == "LOW":
+                magnitude_label.configure(foreground="green")
+            
+            row += 1
+        
+        # Add separator
+        ttk.Separator(greek_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display energy levels if available
+        energy_levels = recommendation.get("energy_levels", {})
+        if energy_levels:
+            ttk.Label(greek_frame, text="Energy Levels:", font=("Arial", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+            row += 1
+            
+            for key, value in energy_levels.items():
+                ttk.Label(greek_frame, text=f"{key.replace('_', ' ').capitalize()}:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+                ttk.Label(greek_frame, text=str(value)).grid(row=row, column=1, sticky=tk.W, pady=2)
+                row += 1
+
+    def update_market_context_tab(self, recommendation):
+        """Update the market context tab with recommendation data."""
+        # Clear existing widgets
+        for widget in self.market_context_tab.winfo_children():
+            widget.destroy()
+        
+        # Create frame for market context info
+        context_frame = ttk.Frame(self.market_context_tab)
+        context_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Extract market context data
+        market_regime = recommendation.get("market_regime", {})
+        if not market_regime:
+            ttk.Label(context_frame, text="No market context data available").pack(pady=20)
+            return
+        
+        # Display market regime information
+        row = 0
+        ttk.Label(context_frame, text="Primary Regime:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(context_frame, text=market_regime.get("primary_label", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(context_frame, text="Volatility Regime:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(context_frame, text=market_regime.get("volatility_label", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(context_frame, text="Confidence:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        confidence = market_regime.get("confidence", 0.0)
+        ttk.Label(context_frame, text=f"{confidence:.2f}" if isinstance(confidence, (int, float)) else str(confidence)).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(context_frame, text="Source:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(context_frame, text=market_regime.get("source", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Add separator
+        ttk.Separator(context_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display current market regime from global data
+        ttk.Label(context_frame, text="Current Market Regime:", font=("Arial", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(context_frame, text="Primary:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(context_frame, text=self.market_regimes.get("primary", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(context_frame, text="Volatility:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(context_frame, text=self.market_regimes.get("volatility", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Add alignment information
+        ttk.Label(context_frame, text="Aligned with Market:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        is_aligned = self.is_aligned_with_market_regime(recommendation)
+        aligned_label = ttk.Label(context_frame, text="Yes" if is_aligned else "No")
+        aligned_label.grid(row=row, column=1, sticky=tk.W, pady=2)
+        
+        # Color code alignment
+        if is_aligned:
+            aligned_label.configure(foreground="green")
+        else:
+            aligned_label.configure(foreground="red")
+
+    def update_regime_tab(self, recommendation):
+        """Update the regime tab with recommendation data."""
+        # Clear existing widgets
+        for widget in self.regime_tab.winfo_children():
+            widget.destroy()
+        
+        # Create frame for regime info
+        regime_frame = ttk.Frame(self.regime_tab)
+        regime_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Extract regime data
+        market_regime = recommendation.get("market_regime", {})
+        if not market_regime:
+            ttk.Label(regime_frame, text="No regime data available").pack(pady=20)
+            return
+        
+        # Display regime information
+        row = 0
+        ttk.Label(regime_frame, text="Recommendation Regime:", font=("Arial", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(regime_frame, text="Primary Label:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(regime_frame, text=market_regime.get("primary_label", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(regime_frame, text="Volatility Label:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(regime_frame, text=market_regime.get("volatility_label", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(regime_frame, text="Confidence:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+        confidence = market_regime.get("confidence", 0.0)
+        ttk.Label(regime_frame, text=f"{confidence:.2f}" if isinstance(confidence, (int, float)) else str(confidence)).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        ttk.Label(regime_frame, text="Source:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+        ttk.Label(regime_frame, text=market_regime.get("source", "Unknown")).grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Add separator
+        ttk.Separator(regime_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display regime transitions if available
+        if hasattr(self, 'regime_transitions') and self.regime_transitions:
+            ttk.Label(regime_frame, text="Recent Regime Transitions:", font=("Arial", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+            row += 1
+            
+            # Create a frame for the transitions
+            transitions_frame = ttk.Frame(regime_frame)
+            transitions_frame.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+            
+            # Add headers
+            ttk.Label(transitions_frame, text="Date", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=2, sticky=tk.W)
+            ttk.Label(transitions_frame, text="Primary", font=("Arial", 10, "bold")).grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
+            ttk.Label(transitions_frame, text="Volatility", font=("Arial", 10, "bold")).grid(row=0, column=2, padx=5, pady=2, sticky=tk.W)
+            ttk.Label(transitions_frame, text="Confidence", font=("Arial", 10, "bold")).grid(row=0, column=3, padx=5, pady=2, sticky=tk.W)
+            
+            # Add transitions (most recent first, limit to 5)
+            for i, transition in enumerate(reversed(self.regime_transitions[-5:])):
+                ttk.Label(transitions_frame, text=transition.get("date", "Unknown")).grid(row=i+1, column=0, padx=5, pady=2, sticky=tk.W)
+                ttk.Label(transitions_frame, text=transition.get("primary", "Unknown")).grid(row=i+1, column=1, padx=5, pady=2, sticky=tk.W)
+                ttk.Label(transitions_frame, text=transition.get("volatility", "Unknown")).grid(row=i+1, column=2, padx=5, pady=2, sticky=tk.W)
+                confidence = transition.get("confidence", 0.0)
+                ttk.Label(transitions_frame, text=f"{confidence:.2f}" if isinstance(confidence, (int, float)) else str(confidence)).grid(row=i+1, column=3, padx=5, pady=2, sticky=tk.W)
+
+    def update_duration_tab(self, recommendation):
+        """Update the duration tab with recommendation data."""
+        # Clear existing widgets
+        for widget in self.duration_tab.winfo_children():
+            widget.destroy()
+        
+        # Create frame for duration info
+        duration_frame = ttk.Frame(self.duration_tab)
+        duration_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Extract duration data
+        duration_profile = recommendation.get("duration_profile", {})
+        if not duration_profile:
+            ttk.Label(duration_frame, text="No duration data available").pack(pady=20)
+            return
+        
+        # Display duration information
+        row = 0
+        ttk.Label(duration_frame, text="Expected Duration:", font=("Arial", 10, "bold")).grid(row=row, column=0, sticky=tk.W, pady=2)
+        days_to_hold = recommendation.get("days_to_hold", "N/A")
+        ttk.Label(duration_frame, text=f"{days_to_hold} days").grid(row=row, column=1, sticky=tk.W, pady=2)
+        row += 1
+        
+        # Add separator
+        ttk.Separator(duration_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        row += 1
+        
+        # Display duration profile
+        ttk.Label(duration_frame, text="Duration Profile:", font=("Arial", 10, "bold")).grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+        row += 1
+        
+        for key, value in duration_profile.items():
+            day = key.replace("day_", "Day ")
+            ttk.Label(duration_frame, text=f"{day}:", font=("Arial", 10)).grid(row=row, column=0, sticky=tk.W, pady=2)
+            ttk.Label(duration_frame, text=f"{value:.2f}" if isinstance(value, (int, float)) else str(value)).grid(row=row, column=1, sticky=tk.W, pady=2)
+            row += 1
+
+    def refresh_data(self):
+        """Refresh all data from source files."""
+        logger.info("Refreshing dashboard data...")
+        
+        # Reload recommendations
+        self.load_recommendations()
+        
+        # Reload market regimes
+        self.load_market_regimes()
+        
+        # Update UI
+        self.update_recommendation_list()
+        
+        # Update status
+        self.update_status("Data refreshed successfully", "info")
+        
+        logger.info("Data refresh complete")
+
+    def setup_ui(self):
+        """Set up the dashboard UI."""
+        # Initialize the UI
+        self.initialize_ui()
+        logger.info("UI setup complete")
+
+    def create_style(self):
+        """Create theme settings for the dashboard."""
+        style = ttk.Style()
+        style.theme_use("clam")  # Use a modern theme
+        logger.info("Style configured")
+
+    def create_layout(self):
+        """Create main layout frames."""
+        # Main frame
+        self.main_frame = ttk.Frame(self.root)
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        logger.info("Main layout created")
+
+    def create_top_controls(self):
+        """Create top controls for the dashboard."""
+        # Create a frame for top controls
+        self.top_controls_frame = ttk.Frame(self.main_frame)
+        self.top_controls_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        # Add a label for the dashboard title
+        self.title_label = ttk.Label(self.top_controls_frame, text="Greek Energy Flow Dashboard", font=("Arial", 16, "bold"))
+        self.title_label.pack(side=tk.LEFT, padx=10)
+        
+        # Add a refresh button
+        self.refresh_button = ttk.Button(self.top_controls_frame, text="Refresh Data", command=self.refresh_data)
+        self.refresh_button.pack(side=tk.RIGHT, padx=10)
+        logger.info("Top controls created")
+
+    def create_recommendation_list(self):
+        """Create the recommendation list view."""
+        # Create frame for recommendation list
+        list_frame = ttk.LabelFrame(self.recommendations_frame, text="Trade Recommendations")
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create treeview for recommendations
+        columns = ("Symbol", "Strategy", "Entry", "Stop", "Target", "R:R", "Risk")
+        self.recommendation_tree = ttk.Treeview(list_frame, columns=columns, show="headings", selectmode="browse")
+        
+        # Configure columns
+        self.recommendation_tree.heading("Symbol", text="Symbol")
+        self.recommendation_tree.heading("Strategy", text="Strategy")
+        self.recommendation_tree.heading("Entry", text="Entry")
+        self.recommendation_tree.heading("Stop", text="Stop")
+        self.recommendation_tree.heading("Target", text="Target")
+        self.recommendation_tree.heading("R:R", text="R:R")
+        self.recommendation_tree.heading("Risk", text="Risk")
+        
+        # Set column widths
+        self.recommendation_tree.column("Symbol", width=80)
+        self.recommendation_tree.column("Strategy", width=120)
+        self.recommendation_tree.column("Entry", width=80)
+        self.recommendation_tree.column("Stop", width=80)
+        self.recommendation_tree.column("Target", width=80)
+        self.recommendation_tree.column("R:R", width=60)
+        self.recommendation_tree.column("Risk", width=60)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.recommendation_tree.yview)
+        self.recommendation_tree.configure(yscroll=scrollbar.set)
+        
+        # Pack treeview and scrollbar
+        self.recommendation_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind selection event
+        self.recommendation_tree.bind("<<TreeviewSelect>>", self.on_recommendation_selected)
+        
+        # Define tags for different recommendation types
+        self.recommendation_tree.tag_configure("buy", background="#e6ffe6")  # Light green
+        self.recommendation_tree.tag_configure("sell", background="#ffe6e6")  # Light red
+        self.recommendation_tree.tag_configure("hold", background="#f0f0f0")  # Light gray
+        self.recommendation_tree.tag_configure("aligned", foreground="#006600")  # Dark green text
+
+    def create_detail_view(self):
+        """Create the detail view for selected recommendations."""
+        # Create frame for detail view
+        self.detail_frame = ttk.LabelFrame(self.recommendations_frame, text="Recommendation Details")
+        self.detail_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create notebook for detail tabs
+        self.detail_notebook = ttk.Notebook(self.detail_frame)
+        self.detail_notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create tabs for different aspects of the recommendation
+        self.summary_tab = ttk.Frame(self.detail_notebook)
+        self.entry_exit_tab = ttk.Frame(self.detail_notebook)
+        self.greeks_tab = ttk.Frame(self.detail_notebook)
+        self.market_context_tab = ttk.Frame(self.detail_notebook)
+        self.regime_tab = ttk.Frame(self.detail_notebook)
+        self.duration_tab = ttk.Frame(self.detail_notebook)
+        
+        # Add tabs to notebook
+        self.detail_notebook.add(self.summary_tab, text="Summary")
+        self.detail_notebook.add(self.entry_exit_tab, text="Entry/Exit")
+        self.detail_notebook.add(self.greeks_tab, text="Greeks")
+        self.detail_notebook.add(self.market_context_tab, text="Market Context")
+        self.detail_notebook.add(self.regime_tab, text="Regime")
+        self.detail_notebook.add(self.duration_tab, text="Duration")
+        
+        # Initialize detail view with empty data
+        self.clear_detail_view()
+
+    def update_status(self, message, status_type="info"):
+        """Update the status bar with a message and log it."""
+        # Ensure UI elements exist before trying to configure them
+        if not hasattr(self, 'status_var'):
+            print(f"Status update (UI not ready): [{status_type.upper()}] {message}")
+            return
+
+        try:
+            # Set color based on status type
+            color = {
+                "info": "black",
+                "success": "green",
+                "warning": "orange",
+                "error": "red"
+            }.get(status_type, "black")
+
+            # Update status label
+            self.status_var.set(message)
+            self.status_bar.config(foreground=color)
+            self.root.update_idletasks()
+
+            # Log the status message
+            if status_type == "error":
+                logger.error(message)
+            elif status_type == "warning":
+                logger.warning(message)
+            else:  # info, success
+                logger.info(message)
+        except Exception as e:
+            # Log error updating status itself, avoid recursive calls
+            logger.error(f"Internal error updating status bar: {e}")
+
+    def apply_filters(self, update_ui=True):
+        """Apply filters and return filtered recommendations. Optionally update UI."""
+        logger.debug("Applying filters...")
+        filtered = self.recommendations.copy()  # Start with all recommendations
+
+        # Get filter values
+        selected_strategy = self.strategy_var.get()
+        selected_risk = self.risk_var.get()
+        selected_regime = self.regime_var.get()
+        show_aligned_only = self.aligned_var.get()
+
+        # Apply strategy filter
+        if selected_strategy != "All":
+            filtered = [rec for rec in filtered
+                      if rec.get("strategy_name", rec.get("Strategy", "Unknown")) == selected_strategy]
+        
+        # Apply risk filter
+        if selected_risk != "All":
+            filtered = [rec for rec in filtered
+                      if rec.get("risk_category", "MEDIUM") == selected_risk]
+        
+        # Apply regime filter
+        if selected_regime != "All":
+            filtered = [rec for rec in filtered
+                      if rec.get("Regime", rec.get("market_regime", {}).get("primary_label", "Unknown")) == selected_regime]
+        
+        # Apply aligned filter
+        if show_aligned_only:
+            filtered = [rec for rec in filtered if self.is_aligned_with_market_regime(rec)]
+        
+        # Update UI if requested
+        if update_ui:
+            self.update_recommendation_list(filtered)
+        
+        return filtered
+
+    def reset_filters(self):
+        """Reset all filters to default values."""
+        self.strategy_var.set("All")
+        self.risk_var.set("All")
+        self.regime_var.set("All")
+        self.aligned_var.set(False)
+        self.apply_filters()
+
+    def is_aligned_with_market_regime(self, recommendation):
+        """Check if a recommendation is aligned with the current market regime."""
+        if not self.market_regimes:
+            return False
+        
+        # Get market regime
+        market_regime = self.market_regimes.get("primary", "Unknown")
+        
+        # Get recommendation action
+        action = recommendation.get("action", recommendation.get("Action", "HOLD"))
+        
+        # Get recommendation regime
+        rec_regime = recommendation.get("Regime", recommendation.get("market_regime", {}).get("primary_label", "Unknown"))
+        
+        # Check alignment
+        if market_regime == "Bullish" and action == "BUY":
+            return True
+        elif market_regime == "Bearish" and action == "SELL":
+            return True
+        elif market_regime == rec_regime:
+            return True
+        
+        return False
+
+    def update_recommendation_list(self, recommendations=None):
+        """Update the recommendation list with the given recommendations."""
+        # If no recommendations provided, use all recommendations
+        if recommendations is None:
+            recommendations = self.recommendations
+        
+        # Clear existing items
+        for item in self.recommendation_tree.get_children():
+            self.recommendation_tree.delete(item)
+        
+        # Add recommendations to tree
+        added_count = 0
+        for rec in recommendations:
+            try:
+                # Extract data
+                symbol = rec.get("symbol", rec.get("Symbol", "Unknown"))
+                strategy = rec.get("strategy_name", rec.get("Strategy", "Unknown"))
+                action = rec.get("action", rec.get("Action", "HOLD"))
+                
+                # Get price data
+                current_price = rec.get("current_price", 0.0)
+                entry_zone = rec.get("entry_zone", [0.0, 0.0])
+                entry_display = f"{entry_zone[0]:.2f}-{entry_zone[1]:.2f}" if isinstance(entry_zone, list) else f"{current_price:.2f}"
+                
+                # Get stop and target
+                stop_loss = rec.get("stop_loss_percent", 0.0)
+                profit_target = rec.get("profit_target_percent", 0.0)
+                stop_display = f"{current_price * (1 - stop_loss/100):.2f}" if stop_loss else "N/A"
+                target_display = f"{current_price * (1 + profit_target/100):.2f}" if profit_target else "N/A"
+                
+                # Get risk-reward ratio
+                rr_ratio = rec.get("rr_ratio_str", "N/A")
+                risk = rec.get("risk_category", "MEDIUM")
+                
+                # Determine tag based on action
+                tags = []
+                if action.upper() == "BUY":
+                    tags.append("buy")
+                elif action.upper() == "SELL":
+                    tags.append("sell")
+                else:
+                    tags.append("hold")
+                
+                # Add aligned tag if recommendation aligns with market regime
+                if self.is_aligned_with_market_regime(rec):
+                    tags.append("aligned")
+                
+                # Add to tree with appropriate tags
+                self.recommendation_tree.insert("", tk.END, values=(
+                    symbol, strategy, entry_display, stop_display, target_display, rr_ratio, risk
+                ), tags=tuple(tags))
+                added_count += 1
+            
+            except Exception as e:
+                logger.error(f"Error adding recommendation to tree: {rec.get('symbol', 'Unknown')} - {e}")
+        
+        # Update status
+        self.update_status(f"Displaying {added_count} recommendations")
+
+    def on_recommendation_selected(self, event):
+        """Handle selection of a recommendation in the tree."""
+        # Get selected item
+        selection = self.recommendation_tree.selection()
+        if not selection:
+            return
+        
+        # Get selected item values
+        item = selection[0]
+        values = self.recommendation_tree.item(item, "values")
+        
+        # Find corresponding recommendation
+        symbol = values[0]
+        strategy = values[1]
+        selected_rec = None
+        
+        for rec in self.recommendations:
+            rec_symbol = rec.get("symbol", rec.get("Symbol", "Unknown"))
+            rec_strategy = rec.get("strategy_name", rec.get("Strategy", "Unknown"))
+            
+

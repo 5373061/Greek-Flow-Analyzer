@@ -115,19 +115,20 @@ def convert_to_dashboard_format(data, symbol, file_path):
             # Already in dashboard format, just ensure all required fields
             dashboard_rec = data.copy()
             
-            # Ensure required fields
-            if "TradeContext" not in dashboard_rec:
-                dashboard_rec["TradeContext"] = {
-                    "market_regime": {
-                        "primary": dashboard_rec.get("Regime", "Unknown"),
-                        "volatility": dashboard_rec.get("VolRegime", "Normal")
-                    },
-                    "volatility_regime": dashboard_rec.get("VolRegime", "Normal"),
-                    "hold_time_days": dashboard_rec.get("HoldTimeDays", 7)
-                }
+            # Ensure TradeContext is standardized
+            if "TradeContext" not in dashboard_rec or not dashboard_rec["TradeContext"]:
+                dashboard_rec["TradeContext"] = standardize_trade_context(dashboard_rec, symbol)
+            else:
+                # Standardize existing TradeContext
+                standard_context = standardize_trade_context(dashboard_rec, symbol)
+                # Only update missing fields to preserve existing data
+                for key, value in standard_context.items():
+                    if key not in dashboard_rec["TradeContext"] or not dashboard_rec["TradeContext"][key]:
+                        dashboard_rec["TradeContext"][key] = value
             
+            # Ensure HoldTimeDays is set
             if "HoldTimeDays" not in dashboard_rec:
-                dashboard_rec["HoldTimeDays"] = dashboard_rec.get("TradeContext", {}).get("hold_time_days", 7)
+                dashboard_rec["HoldTimeDays"] = dashboard_rec["TradeContext"]["hold_time_days"]
             
             return dashboard_rec
         
@@ -152,8 +153,18 @@ def convert_to_dashboard_format(data, symbol, file_path):
             strategy = "ML Enhanced"
         
         # Extract regime information
-        primary_regime = data.get("primary_regime", "Unknown")
-        volatility_regime = data.get("volatility_regime", "Normal")
+        primary_regime = "Unknown"
+        volatility_regime = "Normal"
+        
+        if "primary_regime" in data:
+            primary_regime = data.get("primary_regime")
+        elif "market_regime" in data and "primary" in data["market_regime"]:
+            primary_regime = data["market_regime"]["primary"]
+        
+        if "volatility_regime" in data:
+            volatility_regime = data.get("volatility_regime")
+        elif "market_regime" in data and "volatility" in data["market_regime"]:
+            volatility_regime = data["market_regime"]["volatility"]
         
         # Create dashboard-compatible format
         dashboard_rec = {
@@ -169,16 +180,11 @@ def convert_to_dashboard_format(data, symbol, file_path):
             "Timestamp": data.get("timestamp", datetime.now().isoformat()),
             "Confidence": data.get("confidence", 0.7),
             "Notes": data.get("notes", "Generated from trade recommendation"),
-            "TradeContext": {
-                "market_regime": {
-                    "primary": primary_regime,
-                    "volatility": volatility_regime
-                },
-                "volatility_regime": volatility_regime,
-                "hold_time_days": data.get("hold_time_days", 7)
-            },
             "HoldTimeDays": data.get("hold_time_days", 7)
         }
+        
+        # Create standardized TradeContext
+        dashboard_rec["TradeContext"] = standardize_trade_context(data, symbol)
         
         return dashboard_rec
     except Exception as e:
@@ -334,6 +340,83 @@ pause
         logger.error(f"Error creating batch file: {e}")
         return False
 
+def standardize_trade_context(data, symbol):
+    """
+    Create a standardized trade context structure from various input formats.
+    
+    Args:
+        data: Dictionary containing trade recommendation data
+        symbol: Ticker symbol
+        
+    Returns:
+        dict: Standardized trade context
+    """
+    # Initialize standard trade context structure
+    standard_context = {
+        "market_regime": {
+            "primary": "Unknown",
+            "volatility": "Normal"
+        },
+        "volatility_regime": "Normal",
+        "hold_time_days": 7,
+        "dominant_greek": None,
+        "energy_state": None,
+        "entropy_score": None,
+        "anomalies": [],
+        "greek_metrics": {},
+        "support_levels": [],
+        "resistance_levels": []
+    }
+    
+    # Extract from TradeContext if it exists
+    if "TradeContext" in data:
+        trade_context = data["TradeContext"]
+        
+        # Market regime
+        if "market_regime" in trade_context:
+            market_regime = trade_context["market_regime"]
+            if isinstance(market_regime, dict):
+                standard_context["market_regime"]["primary"] = market_regime.get("primary", standard_context["market_regime"]["primary"])
+                standard_context["market_regime"]["volatility"] = market_regime.get("volatility", standard_context["market_regime"]["volatility"])
+            elif isinstance(market_regime, str):
+                standard_context["market_regime"]["primary"] = market_regime
+        
+        # Volatility regime
+        if "volatility_regime" in trade_context:
+            standard_context["volatility_regime"] = trade_context["volatility_regime"]
+        
+        # Hold time
+        if "hold_time_days" in trade_context:
+            standard_context["hold_time_days"] = trade_context["hold_time_days"]
+        
+        # Copy other fields if they exist
+        for field in ["dominant_greek", "energy_state", "entropy_score", "anomalies", 
+                      "greek_metrics", "support_levels", "resistance_levels"]:
+            if field in trade_context:
+                standard_context[field] = trade_context[field]
+    
+    # Extract from top-level fields if TradeContext doesn't exist or is missing data
+    if "Regime" in data and not standard_context["market_regime"]["primary"] or standard_context["market_regime"]["primary"] == "Unknown":
+        standard_context["market_regime"]["primary"] = data["Regime"]
+    
+    if "VolRegime" in data and not standard_context["volatility_regime"] or standard_context["volatility_regime"] == "Normal":
+        standard_context["volatility_regime"] = data["VolRegime"]
+    
+    if "HoldTimeDays" in data and not standard_context["hold_time_days"]:
+        standard_context["hold_time_days"] = data["HoldTimeDays"]
+    
+    # Extract from Notes field if available
+    if "Notes" in data:
+        notes = data["Notes"]
+        
+        # Try to extract dominant Greek from notes
+        if "Greek Analysis:" in notes and "dominated" in notes:
+            greek_part = notes.split("Greek Analysis:")[1].split("dominated")[0].strip()
+            if greek_part:
+                standard_context["dominant_greek"] = greek_part.lower()
+    
+    return standard_context
+
 def main():
     """Main entry point for the unified trade recommendation format script."""
     # Parse command line arguments
@@ -374,3 +457,4 @@ Please check the log for details.
 
 if __name__ == "__main__":
     main()
+

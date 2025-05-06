@@ -16,6 +16,22 @@ A comprehensive Python library for analyzing options Greeks to identify energy f
 - **Pattern Analysis**: Identify and analyze ordinal patterns in Greek metrics to enhance trading decisions
 - **Interactive Dashboard**: Visualize analysis results and trade recommendations
 
+## Trade Context System
+
+The Greek Energy Flow Analysis includes a standardized trade context system that provides essential information about market conditions and trade parameters:
+
+### Key Trade Context Components
+
+- **Market Regime**: Primary market regime and volatility environment
+- **Dominant Greek**: The Greek currently dominating market behavior
+- **Energy State**: Current state of Greek energy in the market
+- **Entropy Score**: Measure of market disorder
+- **Greek Metrics**: Key Greek values for the underlying
+- **Support/Resistance Levels**: Key price levels identified by the analysis
+- **Hold Time**: Recommended holding period based on regime and pattern analysis
+
+This trade context information is used throughout the system to enhance trade recommendations and provide a comprehensive view of market conditions.
+
 ### SEQUENCE OF STEPS ###
 
 1. **Install the Package**:
@@ -184,6 +200,7 @@ The dashboard provides:
 2. Auto-refreshing data at specified intervals
 3. Trade recommendations based on current market conditions
 4. Greek energy flow and entropy visualizations
+5. Ordinal pattern analysis and visualization
 
 ### Using the Dashboard Fix Script
 
@@ -272,6 +289,8 @@ python run_my_tickers.py
 - `cross_greek_patterns.py` - Analyzes relationships between patterns in different Greeks
 - `pattern_integration.py` - Integrates pattern analysis with the pipeline
 - `visualization/pattern_visualizer.py` - Visualizes Greek patterns
+
+For more detailed information about pattern analysis, see [README_PATTERNS.md](README_PATTERNS.md).
 
 ### Data Management
 
@@ -468,6 +487,19 @@ python -m tools.trade_dashboard
 
 The dashboard automatically loads analysis results from the `results` directory and provides an intuitive interface for exploring trading opportunities based on Greek energy flow analysis.
 
+### Strategy Types
+
+The dashboard supports multiple strategy types:
+
+1. **Greek Flow**: Strategies based on options Greek energy flow analysis
+2. **Momentum**: Strategies based on price momentum
+3. **Mean Reversion**: Strategies that capitalize on price reversions to the mean
+4. **Volatility Expansion**: Strategies that profit from volatility increases
+5. **ML Enhanced**: Strategies enhanced with machine learning predictions
+6. **Ordinal**: Strategies based on ordinal pattern analysis
+
+For more detailed information about the dashboard, see [README_DASHBOARD.md](README_DASHBOARD.md).
+
 ### Troubleshooting Dashboard Issues
 
 If you encounter issues with the dashboard:
@@ -516,5 +548,6 @@ For regime transition visualization, you can load historical regime data:
 3. Select the directory containing `regime_history.json`
 
 This enables visualization of regime transitions over time, but is not required for basic dashboard functionality.
+
 
 
